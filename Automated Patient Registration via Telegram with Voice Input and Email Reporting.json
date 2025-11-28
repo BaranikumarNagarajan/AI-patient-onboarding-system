@@ -1,0 +1,613 @@
+{
+  "name": "Automated Patient Registration via Telegram with Voice Input and Email Reporting",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "*"
+        ],
+        "additionalFields": {
+          "download": true
+        }
+      },
+      "id": "e77fc424-e0c1-425f-bc65-8128d7a8d2ff",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "6e01c52c-32b1-4fcf-9dc2-10fd780a0d0b",
+      "credentials": {
+        "telegramApi": {
+          "id": "Yan9rNr6qYPEwIGZ",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "GroqApiKey",
+              "value": "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",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "telegramBotToken",
+              "value": "8073505285:AAEfOyzv9mSGtEKpCncdj5ewsVBbLVncfls",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "googleSheetId",
+              "value": "19h3RDVx6rYswmpg5nPinsyuOmDBn3VVbOYFkNpZ26Jk",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "0e28be88-a7be-4b9d-926c-4255bc1bd56f",
+      "name": "Workflow Configuration",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/audio/transcriptions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-large-v3"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "id": "95cc72c0-df65-47c9-bf4a-2f51e54fd7d6",
+      "name": "Transcribe Voice with OpenAI Whisper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1088,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ 'Patient voice input transcription: ' + $json.text }}",
+        "options": {
+          "systemMessage": "=You are the Patient Registration Assistant for ClinicCare Health Services.\n\nYour ONLY job is to return a JSON object with EXACTLY this structure:\n\n{\n  \"reply\": \"\",\n  \"completed\": false,\n  \"data\": {\n      \"fullName\": \"\",\n      \"age\": \"\",\n      \"gender\": \"\",\n      \"mobile\": \"\",\n      \"email\": \"\",\n      \"insurance\": \"\",\n      \"policy\": \"\",\n      \"registrationId\": \"\"\n  }\n}\n\nRULES:\n1. NEVER add extra fields to the JSON.\n2. NEVER change field names.\n3. NEVER output plain text outside the JSON.\n4. NEVER include Markdown, explanations, or formatting.\n5. ALWAYS write the patient-facing message ONLY inside `\"reply\"`.\n6. ALWAYS keep `\"completed\": false` until final summary.\n7. When the final confirmation message is shown, set `\"completed\": true`.\n\nRESTART TRIGGERS:\nIf user says:\n- \"register\"\n- \"I want to register\"\n- \"register again\"\n- \"restart registration\"\n- \"start registration again\"\n- \"new registration\"\n- \"delete previous memory\"\n- \"fresh registration\"\n- \"sign up\"\n\nThen output:\n\n{\n  \"reply\": \"Welcome to ClinicCare! 🏥\\nI'll help you register as a new patient. Let's begin — what's your full name?\",\n  \"completed\": false,\n  \"data\": {\n      \"fullName\": \"\",\n      \"age\": \"\",\n      \"gender\": \"\",\n      \"mobile\": \"\",\n      \"email\": \"\",\n      \"insurance\": \"\",\n      \"policy\": \"\",\n      \"registrationId\": \"\"\n  }\n}\n\nREGISTRATION FLOW:\n1️⃣ Ask for full name → reply: \"Thank you, [NAME]! What is your age?\"\n2️⃣ Ask for age → \"Got it! What is your gender? (Male/Female/Other)\"\n3️⃣ Gender → \"Perfect! What is your mobile number?\"\n4️⃣ Mobile → \"Thank you! What is your email address?\"\n5️⃣ Email → \"Great! Do you have health insurance? (Provide provider name or type 'None')\"\n6️⃣ If NO insurance (None/No/Nope/N/A) → skip policy.\n7️⃣ Otherwise ask for policy number.\n\nFINAL SUMMARY:\nWhen all fields collected, generate Registration ID as:\nREG-2025XXXX (4 random digits)\n\nThen reply:\n\n\"Perfect! Your registration is complete.\n\nLet me confirm your details:\n\n📋 Name: [FULL NAME]\n🎂 Age: [AGE]\n👤 Gender: [GENDER]\n📞 Mobile: [MOBILE]\n📧 Email: [EMAIL]\n🏥 Insurance: [INSURANCE]\n📄 Policy Number: [POLICY]\n\n🎫 Registration ID: REG-2025XXXX\n\nReply 'yes' to confirm.\n\nREGISTRATION_COMPLETE\"\n\nSet `\"completed\": true` and include all field values in `\"data\"` using EXACT values the user provided.\n\nSTRICT RULES:\n- NEVER mention username.\n- ALWAYS ask for full name, never infer.\n- ACCEPT 10-digit mobile numbers without validation.\n- ACCEPT \"None\"/\"No\"/\"N/A\" as no insurance.\n- NEVER invent values.\n- NEVER modify user inputs.\n- NEVER output empty brackets like [].\n- NEVER output placeholders.\n\nAlways return ONLY the JSON.\n"
+        }
+      },
+      "id": "7d98846a-bc0d-4aeb-9b3a-539240581d65",
+      "name": "Patient Registration Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1440,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{$(\"Telegram Trigger\").first().json.message.chat.id}}",
+        "contextWindowLength": 500
+      },
+      "id": "d53a889e-ae64-4801-9bef-a049d0c0d149",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        1536,
+        176
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "subject",
+              "value": "New Patient Registration Completed",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "emailBody",
+              "value": "={{ 'A new patient has been registered successfully.\\n\\nPatient Details:\\n' + JSON.stringify($json, null, 2) + '\\n\\nTimestamp: ' + new Date().toISOString() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      },
+      "id": "f36a424e-122d-4f07-9bfe-c57da5172fb8",
+      "name": "Format Email Report",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2240,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "sendTo": "=nagarajanbaranikumar@gmail.com",
+        "subject": "={{ $json.subject }}",
+        "emailType": "text",
+        "message": "={{ $json.emailBody }}",
+        "options": {}
+      },
+      "id": "6e8b1f17-bba9-4ddc-ac44-cb7b167d106f",
+      "name": "Send Email Report",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2432,
+        272
+      ],
+      "webhookId": "ee6235e3-e63e-4dd6-b9dd-0fc6342cfa71",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "BzXgCHroUmrrxU9H",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1440,
+        176
+      ],
+      "id": "194b5417-3cc8-41ef-afe1-4a3c53516262",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "crIsZroWCBmPGtO1",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convert Telegram .oga file to proper .ogg for Whisper\n// Binary property must be: data\n\nconst items = $input.all();\n\nfor (let i = 0; i < items.length; i++) {\n  const binary = items[i].binary?.data;\n\n  if (binary) {\n    // Change extension to .ogg\n    binary.fileName = binary.fileName.replace(/\\.oga$/i, \".ogg\");\n\n    // Force correct extension in case Telegram sends no extension\n    if (!binary.fileName.endsWith(\".ogg\")) {\n      binary.fileName = \"voice.ogg\";\n    }\n\n    // Correct MIME type\n    binary.mimeType = \"audio/ogg\";\n\n    // Set extension explicitly (important for some nodes)\n    binary.fileExtension = \"ogg\";\n  }\n}\n\nreturn items;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        768,
+        0
+      ],
+      "id": "85a8932a-b323-403f-9fe9-ba148bb85f00",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $('Telegram Trigger').item.json.message.voice.file_id }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        432,
+        0
+      ],
+      "id": "e3ac7fe9-2af0-4c0a-8b11-20f9cd2a559b",
+      "name": "Get a file",
+      "webhookId": "f702adfd-ade3-4912-bf1c-213e87f4c379",
+      "credentials": {
+        "telegramApi": {
+          "id": "Yan9rNr6qYPEwIGZ",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/19h3RDVx6rYswmpg5nPinsyuOmDBn3VVbOYFkNpZ26Jk/edit?gid=0#gid=0",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/19h3RDVx6rYswmpg5nPinsyuOmDBn3VVbOYFkNpZ26Jk/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $node[\"Clean Patient Data\"].json.data.fullName }}",
+            "Age": "={{ $node[\"Clean Patient Data\"].json.data.age }}",
+            " Gender": "={{ $node[\"Clean Patient Data\"].json.data.gender }}",
+            "Insurance Name": "={{ $node[\"Clean Patient Data\"].json.data.insurance }}nsurance }}",
+            " Phone": "={{ $node[\"Clean Patient Data\"].json.data.mobile }}",
+            "Email": "={{ $node[\"Clean Patient Data\"].json.data.email }}",
+            " Policy Number": "={{ $node[\"Clean Patient Data\"].json.data.policy }}",
+            "RegisteredAt": "={{ $node[\"Clean Patient Data\"].json.data.registrationId }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Age",
+              "displayName": "Age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Gender",
+              "displayName": " Gender",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Phone",
+              "displayName": " Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Insurance Name",
+              "displayName": "Insurance Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Policy Number",
+              "displayName": " Policy Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "RegisteredAt",
+              "displayName": "RegisteredAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2000,
+        272
+      ],
+      "id": "1aaf0e87-ebe9-4a85-9a8c-18c6e274ca0c",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ZJUcMPiRDCKQ0AGE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $node[\"Telegram Trigger\"].json.message.chat.id }}",
+        "text": "={{ JSON.parse($node[\"Patient Registration Agent\"].json.output).reply }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2000,
+        0
+      ],
+      "id": "296d0403-6f4a-4cfd-be4b-1aaedc5680db",
+      "name": "Send a text message",
+      "webhookId": "850523ed-4df6-4045-ab1e-e805f52b4b77",
+      "credentials": {
+        "telegramApi": {
+          "id": "Yan9rNr6qYPEwIGZ",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8fe0e2b4-3118-47bb-b4a9-cda0824f5962",
+              "leftValue": "={{ !$node[\"Patient Registration Agent\"].json.output.completed }}",
+              "rightValue": "t",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2208,
+        0
+      ],
+      "id": "2bec78cb-4e1c-47df-b97c-6c79e19099b4",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Get the agent output safely\nlet raw = $json.output || $json;\n\n// 2. Make sure it's parsed correctly\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);    // If raw is a JSON string\n} catch (e) {\n  parsed = raw;                // If raw is already an object\n}\n\n// 3. If structure is wrong, return full object for debugging\nif (!parsed || typeof parsed !== 'object') {\n  return { error: \"Invalid agent output\", raw: raw };\n}\n\n// 4. Return clean data structure\nreturn {\n  completed: parsed.completed || false,\n  data: {\n    fullName: parsed.data?.fullName || \"\",\n    age: parsed.data?.age || \"\",\n    gender: parsed.data?.gender || \"\",\n    mobile: parsed.data?.mobile || \"\",\n    email: parsed.data?.email || \"\",\n    insurance: parsed.data?.insurance || \"\",\n    policy: parsed.data?.policy || \"\",\n    registrationId: parsed.data?.registrationId || \"\"\n  }\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        0
+      ],
+      "id": "056f740a-b195-49ed-ad4c-15ead3061e03",
+      "name": "Clean Patient Data"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Workflow Configuration",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Workflow Configuration": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe Voice with OpenAI Whisper": {
+      "main": [
+        [
+          {
+            "node": "Patient Registration Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Patient Registration Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patient Registration Agent": {
+      "main": [
+        [
+          {
+            "node": "Clean Patient Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Email Report": {
+      "main": [
+        [
+          {
+            "node": "Send Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Patient Registration Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Transcribe Voice with OpenAI Whisper",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        [
+          {
+            "node": "Format Email Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Patient Data": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Email Report": {
+      "main": [
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "be8352ae-a7b8-4de8-96dd-94245f3af531",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "2bc6eea63429df66242de4aca86c826cc89763edb81b487adca38554f088dcae"
+  },
+  "id": "eS6yOCIFboBatu65",
+  "tags": []
+}

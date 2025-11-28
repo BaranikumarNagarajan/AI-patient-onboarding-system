@@ -1,0 +1,786 @@
+{
+  "name": "AI Email Summarizer + Task Generator → Creates tasks in Trello + Asana",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e9d4ecdf-1d04-4646-905f-32fead3402a0",
+              "leftValue": "={{ $json.message.voice }}\n",
+              "rightValue": "=true",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "id": "7d417cba-8946-4675-a1a7-90048e64de06",
+      "name": "If",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1408,
+        -656
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "text",
+              "stringValue": "={{ $json?.message?.text || \"\" }}"
+            },
+            {
+              "name": "isVoice",
+              "type": "booleanValue",
+              "booleanValue": "={{ !!$json.message.voice }}"
+            },
+            {
+              "name": "voice",
+              "type": "objectValue",
+              "objectValue": "={{ $json.message.voice }}"
+            },
+            {
+              "name": "message",
+              "type": "objectValue",
+              "objectValue": "={{ $json.message }}"
+            },
+            {
+              "name": "cleaned_text",
+              "stringValue": "={{ $json.message?.text || \"\" }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "6cebb383-0e8a-40b3-b41e-4a64d0dad843",
+      "name": "Voice or Text",
+      "type": "n8n-nodes-base.set",
+      "position": [
+        800,
+        -656
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3472,
+        -336
+      ],
+      "id": "199846da-e3de-4bac-ba91-eaa688f141f2",
+      "name": "Send a text message",
+      "webhookId": "40baa79e-1620-4fcf-96d1-7af5b6c2d573",
+      "credentials": {
+        "telegramApi": {
+          "id": "GKCx9H8Q9QfQkdzy",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.transcription || $json.message?.text || $json.cleaned_text }}",
+        "options": {
+          "systemMessage": "You are Angie — a polite assistant who helps clean, clarify, and forward patient messages.\n\nYour job:\n- Understand the user’s intent.\n- If the user sends voice, use its transcription as the message.\n- If the user makes a mistake or sends unclear text, politely ask for clarification.\n- If they ask questions unrelated to registration (“hi”, “hello”, “who are you”), respond politely.\n- If the user says anything related to starting registration (“register”, “i want to register”, “new registration”, “restart registration”), forward that EXACT text.\n- NEVER make decisions about the patient data (name, age, gender, mobile, email, insurance).\n- NEVER generate the next registration question.\n- NEVER summarize the conversation.\n- NEVER produce the final summary.\n- NEVER say that the conversation has ended.\n- NEVER refuse input.\n- NEVER guess values.\n- NEVER modify patient’s data.\n\nOUTPUT FORMAT:\nAlways output CLEAN PLAIN TEXT — the exact user intention, cleaned and clarified.\n\nExamples:\nUser: “my name is priya dharanidharan”\n→ Output: Priya Dharanidharan\n\nUser: “i want to register again”\n→ Output: register again\n\nUser (voice): “my number is 8123456789”\n→ Output: 8123456789\n\nUser: “hii”\n→ Output: Hello! Please tell me what you would like to do.\n\nUser: “I want appointment”\n→ Output: I want appointment.\n",
+          "maxIterations": 10
+        }
+      },
+      "id": "47a0b844-8dcb-4d3c-a1cb-212f72e0f3bc",
+      "name": "Angie, AI Assistant 👩🏻‍🏫",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        2224,
+        -624
+      ],
+      "typeVersion": 1.6
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "9ce6bfb4-e253-4e09-a524-98eab7782cd6",
+              "leftValue": "={{ $json.registration_intent }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        -640
+      ],
+      "id": "e835bef2-995f-43c3-adc2-6b36d1577d83",
+      "name": "Registration Intent"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.userMessage }}",
+        "options": {
+          "systemMessage": "=You are the Patient Registration Assistant for ClinicCare Health Services.\n\n=== CRITICAL RULES ===\n\nNEVER use Telegram username - always ask for full name explicitly.\n\nALWAYS start with the welcome message when the user says \"register\", \"I want to register\", \"sign up\", or restart phrases like \"register again\", \"new registration\", \"restart registration\", \"delete previous memory\".\n\nAccept 10-digit mobile numbers IMMEDIATELY without validation.\n\nShow ALL collected data in the final summary using EXACT values the user provided.\n\nAccept \"None\", \"No\", \"Don't have\", \"Nope\", \"N/A\" as NO INSURANCE without questioning.\n\nIf the conversation is restarting, ALWAYS start from Question 1.\n\n=== DATA TO COLLECT ===\n<!-- \n1. Full Name  \n2. Age  \n3. Gender  \n4. Mobile (exactly 10 digits)  \n5. Email  \n6. Insurance Provider  \n7. Policy Number  \n-->\n\n(Do NOT output or mention these field names. They are instructions for you only.)\n\n=== CONVERSATION START ===\n\nWhen user says ANY of:\n- \"register\"\n- \"I want to register\"\n- \"register again\"\n- \"new register\"\n- \"restart registration\"\n- \"start registration again\"\n- \"delete previous memory\"\n- \"fresh registration\"\n- \"begin registration\"\n- \"sign up\"\n\nRespond with:\n\n\"Welcome to ClinicCare! 🏥  \nI'll help you register as a new patient. This will only take a minute.  \nLet's start — what is your full name?\"\n\n=== STEP-BY-STEP FLOW ===\n\nQuestion 1 — Full Name  \n→ \"Thank you, [NAME]! What is your age?\"\n\nQuestion 2 — Age  \n→ \"Got it! What is your gender? (Male/Female/Other)\"\n\nQuestion 3 — Gender  \n→ \"Perfect! What is your mobile number?\"\n\nQuestion 4 — Mobile  \n→ \"Thank you! What is your email address?\"\n\nQuestion 5 — Email  \n→ \"Great! Do you have health insurance? (Provide provider name or type 'None')\"\n\nQuestion 6 — Insurance  \nIf NO insurance → skip policy number  \nIf YES → ask for policy number\n\nQuestion 7 — Policy Number  \nAny value accepted.\n\n=== FINAL SUMMARY ===\n\nGenerate a Registration ID: REG-2025 + 4 random digits.\n\nSend:\n\n\"Perfect! Your registration is complete.\n\nLet me confirm your details:\n\n📋 Name: [FULL NAME]  \n🎂 Age: [AGE]  \n👤 Gender: [GENDER]  \n📞 Mobile: [MOBILE]  \n📧 Email: [EMAIL]  \n🏥 Insurance: [INSURANCE]  \n📄 Policy Number: [POLICY]\n\n🎫 Registration ID: REG-2025XXXX\n\nReply 'yes' to confirm.\n\nREGISTRATION_COMPLETE\"\n\n=== FIXED RULES ===\n❌ Never output field names.\n❌ Never output internal labels.\n❌ Never create placeholder text.\n❌ Never say “fullname age gender mobile email insurance policy confirm”.\n❌ Never output brackets empty.\n\n=== MOBILE RULE ===\nAccept 10 digits only.\n\n=== INSURANCE RULE ===\nIf \"none/no/nope/N/A\" → treat as NO insurance.\n\n=== RESTART LOGIC ===\nIf user says a restart phrase → start from Question 1.\n\n==========================================================\nHUMAN MESSAGE:\n{{ $json.userMessage }}\n",
+          "enableStreaming": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2208,
+        -320
+      ],
+      "id": "41b1cd76-899a-441a-bf59-b1de42ef057e",
+      "name": "Patient Registration Agent"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2224,
+        -448
+      ],
+      "id": "94d50285-4221-493b-821d-d2a2c1481191",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "kW3Lnk7uao5n8ErF",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2944,
+        -336
+      ],
+      "id": "fefc220d-9d64-43f0-b1dc-4afcbc36647d",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.1-8b-instant",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2192,
+        -144
+      ],
+      "id": "210a116d-fcaf-466a-bfa2-60015f982e47",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "kW3Lnk7uao5n8ErF",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message",
+          "*"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        608,
+        -656
+      ],
+      "id": "0da59c8c-a9d7-4aef-8592-09347c5365d1",
+      "name": "Telegram Trigger",
+      "webhookId": "40179d5e-a9fb-4a84-9c52-cd97fd0362be",
+      "credentials": {
+        "telegramApi": {
+          "id": "GKCx9H8Q9QfQkdzy",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2928,
+        -624
+      ],
+      "id": "30c36076-2049-465c-9a22-016a53f9d0bc",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check Registration State Node - NEW VERSION (no memory.get, no memory.set)\n\nconst rawText = ($json.message?.text || $json.cleaned_text || \"\").toString().trim();\nconst userId = String($json.message?.chat?.id || $json.message?.from?.id || \"unknown\");\nconst now = new Date().toISOString();\n\n// Load memory from previous node (new Simple Memory format)\nlet session = $json.memory || null;\n\n// Restart commands\nconst restartPatterns = [\n  /\\bregister again\\b/i,\n  /\\brestart registration\\b/i,\n  /\\bnew registration\\b/i,\n  /\\bdelete previous memory\\b/i,\n  /\\bstart registration again\\b/i,\n  /\\bfresh registration\\b/i,\n  /\\bbegin registration\\b/i,\n  /\\brestart\\b/i\n];\n\nconst isRestart = restartPatterns.some(p => p.test(rawText));\n\n/** Helper: Create a fresh session */\nfunction createSession(step = \"start\") {\n  return {\n    step,\n    data: {\n      name: \"\",\n      age: \"\",\n      gender: \"\",\n      mobile: \"\",\n      email: \"\",\n      insurance: \"\",\n      policy: \"\"\n    },\n    startedAt: now,\n    lastUpdated: now\n  };\n}\n\n/* 🔁 Restart scenario */\nif (isRestart) {\n  const memory = createSession(\"ask_name\");\n\n  return [{\n    json: {\n      sessionId: userId,\n      memory\n    }\n  }];\n}\n\n/* 🆕 First-time user */\nif (!session) {\n  const startPatterns = [\n    /\\bregister\\b/i,\n    /\\bregistration\\b/i,\n    /\\bsign\\s?up\\b/i,\n    /\\bnew\\s?patient\\b/i,\n    /\\bbook\\s?appointment\\b/i,\n    /\\benroll\\b/i,\n    /\\bjoin\\b/i,\n    /\\bbegin registration\\b/i,\n    /\\bstart registration\\b/i\n  ];\n  \n  const isStart = startPatterns.some(p => p.test(rawText));\n\n  const memory = createSession(isStart ? \"ask_name\" : \"start\");\n\n  return [{\n    json: {\n      sessionId: userId,\n      memory\n    }\n  }];\n}\n\n/* ▶️ Continue existing session */\nsession.lastUpdated = now;\n\nreturn [{\n  json: {\n    sessionId: userId,\n    memory: session\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1008,
+        -656
+      ],
+      "id": "265d2c9c-b15e-46f7-828b-908859b9ab58",
+      "name": "Check Registration State"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "8241955f-0690-41ca-afcc-7c1f72b3ebdb",
+              "leftValue": "={{ \n  !$json.isComplete || \n  $json.message?.text?.toLowerCase().includes('register')\n}}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "or"
+        },
+        "looseTypeValidation": true,
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3280,
+        -624
+      ],
+      "id": "e37b515b-1f6e-43d5-8a4b-791eeeab638c",
+      "name": "If1"
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "https://docs.google.com/spreadsheets/d/1__NOkisM6_zb1TShukCuaSoBk9_n5Q6EHmqWRKjDi4Y/edit?usp=sharing",
+          "mode": "url"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1__NOkisM6_zb1TShukCuaSoBk9_n5Q6EHmqWRKjDi4Y/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Name": "={{ $json.registrationData.name }}",
+            "Age": "={{ $json.registrationData.age }}",
+            " Gender": "={{ $json.registrationData.gender }}",
+            " Phone": "={{ $json.registrationData.mobile }}",
+            "Email": "={{ $json.registrationData.email }}",
+            "Insurance Name": "={{ $json.registrationData.insurance }}",
+            " Policy Number": "={{ $json.registrationData.policy }}",
+            "RegisteredAt": "={{ $json.registrationData.registeredDate }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Name",
+              "displayName": "Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Age",
+              "displayName": "Age",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Gender",
+              "displayName": " Gender",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": " Phone",
+              "displayName": " Phone",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Insurance Name",
+              "displayName": "Insurance Name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": " Policy Number",
+              "displayName": " Policy Number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "RegisteredAt",
+              "displayName": "RegisteredAt",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3552,
+        -640
+      ],
+      "id": "dad2fd9f-94c2-4608-bcba-6fb905b3e0df",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "DndJ6PAYRItcvv7u",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Extract chatId safely\nconst chatId =\n  $json.chatId ||\n  $json.message?.chat?.id ||\n  $input.first()?.json?.chatId ||\n  \"943118188\";\n\n// 2. Extract output text\nlet cleanResponse =\n  $json.aiOutput ||\n  $json.output ||\n  $json.text ||\n  \"\";\n\n// 3. Fallback\nif (!cleanResponse || cleanResponse.trim() === \"\") {\n  cleanResponse =\n    \"I apologize, the assistant failed to generate a response. Please try starting the registration again.\";\n}\n\ncleanResponse = cleanResponse.trim();\n\n// 4. Normalize welcome message\nif (\n  cleanResponse.includes(\"Welcome to ClinicCare\") &&\n  cleanResponse.toLowerCase().includes(\"full name\")\n) {\n  cleanResponse =\n    \"Welcome to ClinicCare! 🏥\\n\\nRegistration will only take a minute. May I ask you what is your full name?\";\n}\n\n// 5. Final output\nreturn [\n  {\n    json: {\n      chatId,\n      text: cleanResponse\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3232,
+        -336
+      ],
+      "id": "2a0c4d56-868d-4255-9cfd-bf675173cae9",
+      "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ======================================================\n// PREPARE SESSION DATA (Memory Safe Version)\n// ======================================================\n\nconst rawText = ($json.message?.text || $json.cleaned_text || \"\").toString().trim();\nconst userId = String($json.message?.chat?.id || $json.message?.from?.id || \"unknown\");\nconst now = new Date().toISOString();\n\nconst normalize = txt => (txt || \"\").toString().trim();\nconst low = rawText.toLowerCase();\n\n// Memory-safe wrapper\nconst mem = (typeof memory !== \"undefined\" && memory.get && memory.set) ? memory : {\n  get: () => null,\n  set: () => {}\n};\n\n// Load session\nlet session = mem.get(userId);\n\n// If no session → create baseline\nif (!session) {\n  session = {\n    step: \"ask_name\",\n    data: { \n      name: \"\", age: \"\", gender: \"\", mobile: \"\", \n      email: \"\", insurance: \"\", policy: \"\" \n    },\n    startedAt: now,\n    lastUpdated: now\n  };\n}\n\n// Helpers\nconst isYes = txt => /\\b(yes|y|correct|confirm)\\b/i.test(txt);\n\nconst isNoInsurance = txt =>\n  /\\b(none|no|nope|n\\/a|i don't have|dont have|no insurance)\\b/i.test(txt);\n\n// Mobile digits only\nconst digits = rawText.replace(/\\D/g, \"\");\nconst isExactly10Digits = digits.length === 10;\n\n// Email format check\nconst looksLikeEmail = /@/.test(rawText) && /\\.[a-z]{2,}$/i.test(rawText);\n\n// MAIN FLOW LOGIC\nswitch (session.step) {\n\n  case \"start\":\n    session.step = \"ask_name\";\n    break;\n\n  case \"ask_name\":\n    if (rawText.length >= 2) {\n      session.data.name = normalize(rawText);\n      session.step = \"ask_age\";\n    }\n    break;\n\n  case \"ask_age\":\n    const ageDigits = rawText.replace(/\\D/g, \"\");\n    if (/^\\d{1,3}$/.test(ageDigits) && Number(ageDigits) >= 1 && Number(ageDigits) <= 120) {\n      session.data.age = String(Number(ageDigits));\n      session.step = \"ask_gender\";\n    }\n    break;\n\n  case \"ask_gender\":\n    if (/^(male|female|other|m|f)$/i.test(rawText)) {\n      const g = rawText.match(/(male|female|other|m|f)/i)[0].toLowerCase();\n      session.data.gender = \n        g === \"m\" ? \"Male\" :\n        g === \"f\" ? \"Female\" :\n        g.charAt(0).toUpperCase() + g.slice(1);\n      session.step = \"ask_mobile\";\n    } else if (rawText.length > 0) {\n      session.data.gender = normalize(rawText);\n      session.step = \"ask_mobile\";\n    }\n    break;\n\n  case \"ask_mobile\":\n    if (isExactly10Digits) {\n      session.data.mobile = digits;\n      session.step = \"ask_email\";\n    }\n    break;\n\n  case \"ask_email\":\n    if (looksLikeEmail) {\n      session.data.email = normalize(rawText);\n      session.step = \"ask_insurance\";\n    }\n    break;\n\n  case \"ask_insurance\":\n    if (isNoInsurance(low)) {\n      session.data.insurance = \"None\";\n      session.data.policy = \"N/A\";\n      session.step = \"complete\";\n    } else if (rawText.length > 0) {\n      session.data.insurance = normalize(rawText);\n      session.step = \"ask_policy\";\n    }\n    break;\n\n  case \"ask_policy\":\n    if (rawText.length > 0) {\n      session.data.policy = normalize(rawText);\n      session.step = \"complete\";\n    }\n    break;\n\n  case \"complete\":\n    if (isYes(rawText)) {\n      session.step = \"confirmed\";\n    } else {\n      session.step = \"confirm\";\n    }\n    break;\n\n  case \"confirm\":\n    if (isYes(rawText)) {\n      session.step = \"confirmed\";\n    }\n    break;\n\n  default:\n    session.step = \"ask_name\";\n    break;\n}\n\n// Save session\nsession.lastUpdated = now;\nmem.set(userId, session);\n\n// Output\nreturn [{\n  json: {\n    userId,\n    rawText,\n    normalizedText: normalize(rawText),\n    session,\n    isExactly10Digits,\n    looksLikeEmail,\n    noInsuranceDetected: isNoInsurance(low)\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1216,
+        -656
+      ],
+      "id": "3beb883c-a148-42b0-a1db-e63b5bf7ffcd",
+      "name": "Prepare Session Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =====================================================\n// FINAL REGISTRATION INTENT DETECTOR (WORKS 100%)\n// =====================================================\n\n// Extract text safely\nconst text =\n  $json.cleaned_text ||\n  $json.message?.text ||\n  $json.text ||\n  \"\"\n.toLowerCase().trim();\n\n// Restart keywords\nconst restartKeywords = [\n  \"register again\",\n  \"restart registration\",\n  \"start registration again\",\n  \"new register\",\n  \"new registration\",\n  \"fresh registration\",\n  \"delete previous memory\",\n  \"reset registration\",\n  \"i want to register again\",\n  \"i want to new register\"\n];\n\n// Registration start keywords\nconst startKeywords = [\n  \"register\",\n  \"registration\",\n  \"sign up\",\n  \"i want to register\",\n  \"i want to sign up\",\n  \"new patient\",\n  \"create account\",\n  \"join clinic\",\n  \"become a patient\"\n];\n\n// Detect restart\nlet isRestart = restartKeywords.some(key => text.includes(key));\n\n// Detect registration start\nlet isStart = startKeywords.some(key => text.includes(key));\n\n// Detect data answers\nlet isData =\n  /^[a-z\\s]{2,50}$/i.test(text) || // Name\n  /^\\d{10}$/.test(text) ||         // Mobile\n  /\\bmale\\b|\\bfemale\\b|\\bother\\b/.test(text) ||\n  /^[0-9]{1,3}$/.test(text) ||\n  /@/.test(text) ||\n  /\\binsurance\\b/.test(text) ||\n  /\\bpolicy\\b/.test(text) ||\n  text === \"none\" ||\n  text === \"no\";\n\n// Decide final flow\nlet isRegistrationFlow = isRestart || isStart || isData;\n\n// Extract chat ID\nconst chatId =\n  $json.message?.chat?.id ||\n  $json.chatId ||\n  \"unknown\";\n\n// Session ID\nconst sessionId =\n  $json.sessionId ||\n  chatId;\n\n// Return\nreturn [{\n  json: {\n    registration_intent: isRegistrationFlow,\n    isRegistrationFlow: isRegistrationFlow,\n    startsRegistration: isRestart || isStart,\n    resetMemory: isRestart,\n\n    cleaned_text: text,\n    userMessage: text,\n    chatId,\n    sessionId,\n\n    _debug: {\n      text,\n      isRestart,\n      isStart,\n      isData,\n      isRegistrationFlow\n    }\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1632,
+        -640
+      ],
+      "id": "fe5dca4d-a91b-40fe-a3bb-18d3ee719587",
+      "name": "Registration Intent Detector"
+    },
+    {
+      "parameters": {
+        "contextWindowLength": 500
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2320,
+        -448
+      ],
+      "id": "f0fc38e1-a829-4f1a-aedd-ebc2418c6306",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "jsCode": "return {\n  userMessage: $json.cleaned_text?.toString() || \n               $json.message?.text?.toString() || \n               \"\"\n};\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1504,
+        -320
+      ],
+      "id": "e5c741bd-1027-48ab-92b9-03c0d5288372",
+      "name": "Code in JavaScript3"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "{{json.chatID}}",
+        "contextWindowLength": 500
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        2304,
+        -144
+      ],
+      "id": "15c6df48-19ae-4607-8981-7a9c6d9db64e",
+      "name": "Simple Memory1"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =================================================================\n// JS1 — Registration State Manager (FINAL, CLEAN, BUG-FREE VERSION)\n// =================================================================\n\n// ---------------------------------------------------------------\n// 1. Read the REAL user message (Telegram only for restart logic)\n// ---------------------------------------------------------------\nconst userTextRaw = $json.message?.text || \"\";\nconst userText = userTextRaw.toLowerCase().trim();\n\n// ---------------------------------------------------------------\n// 2. Read the WORKING message (from ANY valid source)\n//    Works with Telegram, AI agent, transcription, Merge, etc.\n// ---------------------------------------------------------------\nconst msg = (\n  $json.message?.text ||       // Telegram input\n  $json.transcription ||       // Voice → text\n  $json.cleaned_text ||        // Pre-processed text\n  $json.output ||              // Agent output (Merge)\n  $json.aiOutput ||            // Previous AI output\n  $json.userMessage ||         // Custom forwarded text\n  \"\"\n).trim();\n\nconst lower = msg.toLowerCase();\n\n// ---------------------------------------------------------------\n// 3. Telegram chatId (always needed by JS2)\n// ---------------------------------------------------------------\nconst chatId =\n  $json.chatId ||\n  $json.message?.chat?.id ||\n  \"943118188\";\n\n// ---------------------------------------------------------------\n// 4. Load previous state\n// ---------------------------------------------------------------\nlet step = $json.step || \"ask_name\";\nlet data = $json.registrationData || {};\nlet isComplete = $json.isComplete || false;\n\n// ---------------------------------------------------------------\n// 5. Restart Logic — ONLY triggered by REAL user Telegram messages\n//    (NOT AI output, NOT merge output)\n// ---------------------------------------------------------------\nconst restartWords = [\n  \"register\",\n  \"register again\",\n  \"restart\",\n  \"restart registration\",\n  \"new registration\",\n  \"start registration again\",\n  \"fresh registration\",\n  \"delete previous memory\",\n  \"sign up\",\n  \"begin registration\",\n  \"i want to register\",\n  \"new register\"\n];\n\n// Check if the *user’s actual Telegram message* triggers restart\nif (restartWords.some(w => userText.includes(w))) {\n  return [\n    {\n      json: {\n        chatId,\n        step: \"ask_name\",\n        isComplete: false,\n        registrationData: {},\n        aiOutput:\n          \"Welcome to ClinicCare! 🏥\\n\\n\" +\n          \"Registration will only take a minute. May I ask you what is your full name?\"\n      }\n    }\n  ];\n}\n\n// =================================================================\n// 6. REGISTRATION STEP CONTROLLER\n// =================================================================\n\nswitch (step) {\n\n  // -------------------------------------------------------------\n  case \"ask_name\":\n    data.name = msg;\n    step = \"ask_age\";\n\n    return [\n      {\n        json: {\n          chatId,\n          step,\n          isComplete: false,\n          registrationData: data,\n          aiOutput: `Thank you, ${data.name}! What is your age?`\n        }\n      }\n    ];\n\n  // -------------------------------------------------------------\n  case \"ask_age\":\n    data.age = msg;\n    step = \"ask_gender\";\n\n    return [\n      {\n        json: {\n          chatId,\n          step,\n          isComplete: false,\n          registrationData: data,\n          aiOutput: `Got it! What is your gender? (Male/Female/Other)`\n        }\n      }\n    ];\n\n  // -------------------------------------------------------------\n  case \"ask_gender\":\n    data.gender = msg;\n    step = \"ask_mobile\";\n\n    return [\n      {\n        json: {\n          chatId,\n          step,\n          registrationData: data,\n          isComplete: false,\n          aiOutput: `Perfect! What is your mobile number?`\n        }\n      }\n    ];\n\n  // -------------------------------------------------------------\n  case \"ask_mobile\":\n    data.mobile = msg;\n    step = \"ask_email\";\n\n    return [\n      {\n        json: {\n          chatId,\n          step,\n          registrationData: data,\n          isComplete: false,\n          aiOutput: `Thank you! What is your email address?`\n        }\n      }\n    ];\n\n  // -------------------------------------------------------------\n  case \"ask_email\":\n    data.email = msg;\n    step = \"ask_insurance\";\n\n    return [\n      {\n        json: {\n          chatId,\n          step,\n          registrationData: data,\n          isComplete: false,\n          aiOutput: `Great! Do you have health insurance? (Provide provider name or type 'None')`\n        }\n      }\n    ];\n\n  // -------------------------------------------------------------\n  case \"ask_insurance\":\n\n    data.insurance = msg;\n\n    const noInsurance = [\n      \"none\",\n      \"no\",\n      \"nope\",\n      \"n/a\",\n      \"don't have\",\n      \"dont have\",\n      \"no insurance\"\n    ];\n\n    if (noInsurance.some(w => lower.includes(w))) {\n      data.policy = \"N/A\";\n      step = \"summary\";\n    } else {\n      step = \"ask_policy\";\n      return [\n        {\n          json: {\n            chatId,\n            step,\n            registrationData: data,\n            isComplete: false,\n            aiOutput: `What is your insurance policy number?`\n          }\n        }\n      ];\n    }\n\n    // If no insurance → jump to summary\n    return [\n      {\n        json: {\n          chatId,\n          step,\n          registrationData: data,\n          isComplete: false,\n          aiOutput:\n`Since you don't have health insurance, we can skip the policy number. Let's go to the final summary.\n\nPerfect! Your registration is complete.\n\nLet me confirm your details:\n\n📋 Name: ${data.name}\n🎂 Age: ${data.age}\n👤 Gender: ${data.gender}\n📞 Mobile: ${data.mobile}\n📧 Email: ${data.email}\n🏥 Insurance: ${data.insurance}\n📄 Policy Number: ${data.policy}\n\n🎫 Your Registration ID: REG-2025${Math.floor(1000 + Math.random() * 9000)}\n\nIs everything correct? (Reply 'yes' to confirm)`\n        }\n      }\n    ];\n\n  // -------------------------------------------------------------\n  case \"ask_policy\":\n    data.policy = msg;\n    step = \"summary\";\n\n    return [\n      {\n        json: {\n          chatId,\n          step,\n          registrationData: data,\n          isComplete: false,\n          aiOutput:\n`Perfect! Your registration is complete.\n\nLet me confirm your details:\n\n📋 Name: ${data.name}\n🎂 Age: ${data.age}\n👤 Gender: ${data.gender}\n📞 Mobile: ${data.mobile}\n📧 Email: ${data.email}\n🏥 Insurance: ${data.insurance}\n📄 Policy Number: ${data.policy}\n\n🎫 Your Registration ID: REG-2025${Math.floor(1000 + Math.random() * 9000)}\n\nIs everything correct? (Reply 'yes' to confirm)`\n        }\n      }\n    ];\n\n  // -------------------------------------------------------------\n  case \"summary\":\n    if (lower === \"yes\") {\n      step = \"complete\";\n      isComplete = true;\n\n      return [\n        {\n          json: {\n            chatId,\n            step,\n            isComplete,\n            registrationData: data,\n            aiOutput:\n              \"Your registration is now complete. We'll keep your details on record.\\n\\nREGISTRATIONCOMPLETE\"\n          }\n        }\n      ];\n    } else {\n      return [\n        {\n          json: {\n            chatId,\n            step,\n            isComplete: false,\n            registrationData: data,\n            aiOutput: \"Please reply 'yes' to confirm your registration.\"\n          }\n        }\n      ];\n    }\n\n  // -------------------------------------------------------------\n  default:\n    return [\n      {\n        json: {\n          chatId,\n          aiOutput:\n            \"I apologize, the assistant failed to generate a response. Please try starting the registration again.\"\n        }\n      }\n    ];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3104,
+        -624
+      ],
+      "id": "b5ff24a0-1d83-4186-8702-b44b210b3930",
+      "name": "Registration handler"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "If": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Registration Intent Detector",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Voice or Text": {
+      "main": [
+        [
+          {
+            "node": "Check Registration State",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Angie, AI Assistant 👩🏻‍🏫": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registration Intent": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Angie, AI Assistant 👩🏻‍🏫",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Patient Registration Agent": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Angie, AI Assistant 👩🏻‍🏫",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Patient Registration Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message": {
+      "main": [
+        []
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Voice or Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Registration handler",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Registration State": {
+      "main": [
+        [
+          {
+            "node": "Prepare Session Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Append row in sheet": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Session Data": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registration Intent Detector": {
+      "main": [
+        [
+          {
+            "node": "Registration Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Angie, AI Assistant 👩🏻‍🏫",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Patient Registration Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "Patient Registration Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registration handler": {
+      "main": [
+        [
+          {
+            "node": "If1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "versionId": "31fb23f3-b265-4fbb-ab45-66150043c884",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "060e8c3da60b867134718130f372c6b24a2b9319738b571df99dddbc5a2558ba"
+  },
+  "id": "6h2sRIiygNyzsFFV",
+  "tags": []
+}
